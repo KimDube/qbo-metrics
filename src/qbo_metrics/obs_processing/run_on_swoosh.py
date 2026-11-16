@@ -106,6 +106,9 @@ if __name__ == "__main__":
     fig = plot_cycle_summary(coherence, pres=30.0, variable=var)
     plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/SWOOSH_%s_cycle_summary_30hPa.png' % var)
 
+    fig = plot_cycle_summary(coherence, pres=10.0, variable=var)
+    plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/SWOOSH_%s_cycle_summary_10hPa.png' % var)
+
 
     dates = dates.rename({'westerly_onset_date': 'westerly', 'easterly_onset_date': 'easterly'})
     # Diagnose cycle variability and zero-wind descent.

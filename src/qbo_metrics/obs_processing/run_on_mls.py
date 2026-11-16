@@ -1,13 +1,10 @@
-
-import numpy as np
 import xarray as xr
 from matplotlib import pyplot as plt
 import matplotlib
 matplotlib.use("Agg") 
 
 
-from qbo_metrics.composite import (compute_composite, extract_events,
-                       reference_dates, reference_timeseries)
+from qbo_metrics.composite import (compute_composite, extract_events)
 from qbo_metrics.metrics import (cycle_coherence, daily_composite_period, descent_rate,
                      latitudinal_width, max_min_amplitude, phase_amplitude,
                      zero_crossing_period_range)
@@ -41,7 +38,7 @@ def _get_composites(ds_monthly, dates):
 if __name__ == "__main__":
 
     for var in ['temp', 'O3', 'HCl', 'HNO3', 'N2O', 'H2O', 'CO']:
-        data_loc = "/Volumes/Users/krd020/postdoc/ISSI_QBO/data/MLS_V6.0_%s_MZM_2004-2026_for_qbo_metrics.nc" % var
+        data_loc = "/Volumes/Users/krd020/postdoc/ISSI_QBO/data/MLS_V6.0_%s_MZM_anom_2004-2026_for_qbo_metrics.nc" % var
 
         if var in ['temp']:
             v = 'T'
@@ -52,6 +49,7 @@ if __name__ == "__main__":
 
         dates = xr.open_dataset('/Users/krd020/Documents/qbo-metrics/reference_dates.nc')
         westerly_u = xr.open_dataset('/Users/krd020/Documents/qbo-metrics/qbo_composite_westerly_exclude_2015_2020.nc')
+        easterly_u = xr.open_dataset('/Users/krd020/Documents/qbo-metrics/qbo_composite_easterly_exclude_2015_2020.nc')
 
         # Build both onset composites with one consistent configuration.
         composites = _get_composites(ds_monthly, dates)
@@ -69,12 +67,27 @@ if __name__ == "__main__":
         plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/MLS_V6.0_%s_westerly_composite.png' % var)
 
         fig = plot_composite(
+            easterly_equatorial[v], x="lag", x_label="Lag (months)",
+            title="Zonal wind (contours) and MLS %s (fill)" % v,
+            overlay=easterly_u["u"].sel(latitude=0), overlay_step=10.0,
+        )
+        plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/MLS_V6.0_%s_easterly_composite.png' % var)
+
+        fig = plot_composite(
             westerly_composite[v].sel(lag=0),
             x="latitude", x_label="Latitude",
             title="Zonal wind (contours) and MLS %s (fill)" % v,
             overlay=westerly_u["u"].sel(lag=0), overlay_step=10.0,
         )
         plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/MLS_V6.0_%s_westerly_composite_lag0.png' % var)
+
+        fig = plot_composite(
+            easterly_composite[v].sel(lag=0),
+            x="latitude", x_label="Latitude",
+            title="Zonal wind (contours) and MLS %s (fill)" % v,
+            overlay=easterly_u["u"].sel(lag=0), overlay_step=10.0,
+        )
+        plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/MLS_V6.0_%s_easterly_composite_lag0.png' % var)
 
         width_fits = {
             "T": latitudinal_width(westerly_composite[v], orders=(2,)),
@@ -119,7 +132,10 @@ if __name__ == "__main__":
         print(f"Mean cycle/composite coherence: {float(coherence['mean_coherence'].mean()):.2f}")
 
         fig = plot_cycle_summary(coherence, pres=30.0, variable=v)
-        plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/MLS_V6.0_%s_cycle_summary.png' % var)
+        plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/MLS_V6.0_%s_cycle_summary_30hPa.png' % var)
+
+        fig = plot_cycle_summary(coherence, pres=10.0, variable=v)
+        plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/MLS_V6.0_%s_cycle_summary_10hPa.png' % var)
 
 
         dates = dates.rename({'westerly_onset_date': 'westerly', 'easterly_onset_date': 'easterly'})

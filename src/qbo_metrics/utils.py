@@ -16,7 +16,14 @@ VAR_ALIASES = {
     "hno3": ['hno3', 'HNO3'],
     "h2o": ['h2o', 'H2O'],
     "nox": ['nox', 'NOx', 'nox_concentration', 'NOx_concentration'],
-    "co": ['co', 'CO']
+    "noy": ['noy', 'NOy'],
+    "co": ['co', 'CO'],
+    "clono2": ['clono2','ClONO2'],
+    "n2o5": ['n2o5', 'N2O5'],
+    "no": ['no', 'NO'],
+    "no2": ['no2', 'NO2'],
+    "ch4": ['ch4', 'CH4'],
+    "ccl2f2": ['cfc12', 'CFC12', 'ccl2f2', "CCl2F2"]
 }
 
 STANDARD_NAMES = {
