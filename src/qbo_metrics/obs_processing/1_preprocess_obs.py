@@ -1,8 +1,5 @@
 import xarray as xr
 import numpy as np
-from matplotlib import pyplot as plt
-import matplotlib
-matplotlib.use("Agg") 
 import LOTUS_regression.predictors.download as download
 import LOTUS_regression.predictors as predictors
 from LOTUS_regression.regression import mzm_regression
@@ -19,7 +16,6 @@ def standard_trends(data, var, anom=True):
     for alt in data.p.values:
         results_lat = []
         for lat in data.lat.values:
-
             if data[var].sel(p=alt, lat=lat).dropna('time').count('time').values < 60:
                 continue
 
@@ -86,12 +82,11 @@ def prep_mls(data_loc, var, anom=True, percent=False):
     return detrended
 
 
-def prep_osiris(anom=True, percent=False):
+def prep_osiris_nox(anom=True, percent=False):
     data = xr.open_dataset('/Volumes/Users/krd020/postdoc/data/sat_data/OSIRIS/osiris_v74_nox_MZM_vmr_plevs_10deg.nc').load()
     data = data.rename({'pressure': 'p', 'latitude': 'lat'})
     data = data[['nox_concentration']]
     data['nox_concentration'] *= 1e9
-    data = data.sel(time=slice('2002-1', '2021-12'))
     data = data.sel(p=slice(150, 3))
     # remove non-qbo variability  
     if anom:
@@ -102,6 +97,24 @@ def prep_osiris(anom=True, percent=False):
         detrended = standard_trends(data, 'nox_concentration', anom=True)
     else:
         detrended = standard_trends(data, 'nox_concentration', anom=False)
+    return detrended
+
+
+def prep_osiris_o3(anom=True, percent=False):
+    data = xr.open_dataset('/Volumes/Users/krd020/postdoc/data/sat_data/OSIRIS/osiris_v74_ozone_MZM_vmr_plevs_10deg.nc').load()
+    data = data.rename({'pressure': 'p', 'latitude': 'lat'})
+    data = data[['ozone_concentration']]
+    data['ozone_concentration'] *= 1e6
+    data = data.sel(p=slice(150, 1))
+    # remove non-qbo variability  
+    if anom:
+        mean = data.groupby('time.month').mean('time')
+        data = data.groupby('time.month') - mean
+        if percent: 
+            data = data / mean.mean('month')
+        detrended = standard_trends(data, 'ozone_concentration', anom=True)
+    else:
+        detrended = standard_trends(data, 'ozone_concentration', anom=False)
     return detrended
 
 
@@ -140,7 +153,10 @@ def prep_ace(var, anom=True, percent=False):
     data = data.rename({'latitude': 'lat', 'pressure': 'p'})
     data = data[[var]]
     data = data.sel(time=slice('2004-1', '2026-6'))
-    data = data * 1e9  # ppb
+    if var in ['O3', 'H2O']:
+        data = data * 1e6  # ppm
+    else:
+        data = data * 1e9  # ppb
 
     # remove non-qbo variability  
     if anom:
@@ -230,7 +246,14 @@ def sort_by_phase(data):
 
 if __name__ == "__main__":
 
-    for var in ['CHF2Cl']:
+    d = prep_osiris_o3()
+    d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/OSIRIS_V7.4_O3_MZM_anom_2002-2025_for_qbo_metrics.nc')
+
+    d = prep_osiris_nox()
+    d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/OSIRIS_V7.4_NOx_MZM_anom_2002-2025_for_qbo_metrics.nc')
+
+    """
+    for var in ['O3', 'H2O']:
         d = prep_ace(var, anom=False, percent=False)
         d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/ACE_V5.3_%s_MZM_2004-2026_for_qbo_metrics.nc' % var)
         s = sort_by_phase(d.sel(lat=0))
@@ -246,7 +269,7 @@ if __name__ == "__main__":
         s = sort_by_phase(d.sel(lat=0))
         s.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/ACE_V5.3_%s_MZM_anom_percent_by_phase.nc' % var)
 
-    """
+
     d = make_ace_cly(anom=False, percent=False)
     d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/ACE_V5.3_Cly_MZM_2004-2026_for_qbo_metrics.nc')
     s = sort_by_phase(d.sel(lat=0))
@@ -284,8 +307,6 @@ if __name__ == "__main__":
     d = prep_swoosh()
     d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/SWOOSH_V2.72_O3_MZM_1984-2026_for_qbo_metrics.nc')
 
-    d = prep_osiris()
-    d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/OSIRIS_V7.4_NOx_MZM_2002-2021_for_qbo_metrics.nc')
 
     path = '/Volumes/Users/krd020/postdoc/data/issi_info_qbo_timeseries/'
     for var in ['O3', 'temp', 'HCl', 'H2O', 'CO', 'HNO3', 'N2O', 'HCN']:

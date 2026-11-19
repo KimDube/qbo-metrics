@@ -2,6 +2,7 @@
 
 import numpy as np
 import xarray as xr
+import yaml
 
 # Accepted aliases for each variable/coordinate, mapped to the names used here.
 # Variables are also matched on their CF standard_name attribute.
@@ -10,7 +11,7 @@ VAR_ALIASES = {
     "T": ["T", "t", "ta", "temp", "temperature", "air_temperature"],
     "o3": ["o3", "O3", "ozone", "go3", "ozone_mass_mixing_ratio",
            "mole_fraction_of_ozone_in_air", "mole_fraction_of_o3_in_air",
-           "mass_fraction_of_ozone_in_air"],
+           "mass_fraction_of_ozone_in_air", "ozone_concentration"],
     "n2o": ['n2o', 'N2O'],
     "hcl": ['hcl', 'HCl'],
     "hno3": ['hno3', 'HNO3'],
@@ -116,3 +117,25 @@ def load_composite(path):
     if missing:
         raise ValueError(f"{path} is not a composite file: missing dimension(s) {missing}")
     return comp
+
+
+
+def load_control_file(fname='settings'):
+    """Load selected control file
+
+    Parameters
+    ----------
+    fname : str
+        Name of the .yml control file (without the extension).
+
+    Returns
+    -------
+    settings : dict
+        Dictionary of parameters loaded from the control file.
+    """
+
+    # relative path is fixed
+    with open('/Users/krd020/Documents/qbo-metrics/{}.yml'.format(fname), "r") as stream:
+        settings = yaml.safe_load(stream)
+
+    return settings

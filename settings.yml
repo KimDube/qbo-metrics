@@ -1,0 +1,34 @@
+##
+## control file for QBO in obs
+##
+
+## directory structure
+
+root_path: '/Users/krd020/Documents/qbo-metrics/'
+data_save_path: '/Volumes/Users/krd020/postdoc/ISSI_QBO/data/'
+fig_save_path: '/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/'
+
+
+start_yr: '2004'
+start_mo: '8'
+end_yr: '2025'
+end_mo: '12'
+
+EXCLUDED_ONSET_YEARS: [2015, 2020]
+SHEAR_TYPES: ["westerly", "easterly"]
+
+MLS_VARS: ['O3', 'temp', 'HCl', 'HNO3', 'N2O', 'H2O', 'CO']
+MLS_latex_names: ['O$_3$', 'T', 'HCl', 'HNO$_3$', 'N$_2$O', 'H$_2$O', 'CO']
+MLS_units: ['ppm', 'K', 'ppb', 'ppb', 'ppb', 'ppm', 'ppb']
+
+OSIRIS_VARS: ['NOx', 'O3']
+OSIRIS_latex_names: ['NO$_\mathrm{x}$', 'O$_3$']
+OSIRIS_units: ['ppb', 'ppm']
+
+ACE_VARS: ['O3', 'HNO3', 'HCl', 'CH4', 'N2O', 'CCl2F2', 'ClONO2', 'NOy', 'H2O']
+ACE_latex_names: ['O$_3$', 'HNO$_3$', 'HCl', 'CH$_4$', 'N$_2$O', 'CCl$_2$F$_2$', 'ClONO$_2$', 'NO$_\mathrm{y}$', 'H$_2$O']
+ACE_units: ['ppm', 'ppb', 'ppb', 'ppb', 'ppb', 'ppb', 'ppb', 'ppb', 'ppb', 'ppm']
+
+##
+## end of control file
+##
