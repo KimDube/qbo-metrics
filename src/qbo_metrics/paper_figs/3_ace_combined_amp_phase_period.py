@@ -20,7 +20,7 @@ def _plot_reference_pressure(ax, pressure=30.0, label=None, linewidth=1.0):
 def plot_composite(da, x, title="", x_label="", overlay=None,
                    overlay_step=None, overlay_color="k",
                    overlay_linestyles=None, pres_range=(1, 200), ax=None,
-                   reference_pres=30.0, cb_label=None, levels=None):
+                   reference_pres=30.0, levels=None, y_label='Pressure [hPa]'):
     """Plot a pressure--``x`` composite as filled contours.
 
     Fill levels use a zero-centred diverging scale. ``overlay`` adds labelled
@@ -40,7 +40,7 @@ def plot_composite(da, x, title="", x_label="", overlay=None,
     if levels is None:
         levels = ticker.MaxNLocator(nbins=20, symmetric=True).tick_values(-lim, lim)
     
-    cs = ax.contourf(da[x], da["pres"], da.transpose("pres", x), levels=levels, cmap="RdBu_r")
+    cs = ax.contourf(da[x], da["pres"], da.transpose("pres", x), levels=levels, cmap="RdBu_r", extend='both')
     if overlay is not None:
         if overlay_step is None:
             raise ValueError("overlay_step must be given with overlay")
@@ -58,10 +58,9 @@ def plot_composite(da, x, title="", x_label="", overlay=None,
     if x == "lag":
         ax.axvline(0, color="0.25", lw=0.8, ls="--", alpha=0.7)
     ax.set_xlabel(x_label)
-    ax.set_ylabel("Pressure [hPa]")
+    ax.set_ylabel(y_label)
     ax.set_title(title)
-    fig.colorbar(cs, ax=ax, label=cb_label)
-    return fig
+    return cs
 
 
 def _expand_shear_fits(fits):
@@ -114,7 +113,7 @@ def plot_period_fits(fits, ax=None, y_label=None):
         period_text += f" (mean of {components})"
     ax.set_title(f"{period_text}")
     handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, ncols=1, frameon=False, loc='lower center', bbox_to_anchor=(0.5, -0.7))
+    ax.legend(handles, labels, ncols=1, frameon=False, loc='lower center', bbox_to_anchor=(0.5, -0.6))
     return fig
 
 
@@ -267,9 +266,7 @@ def plot_phase_amplitude(fits, title="QBO phase and amplitude",
             amp_ax_i.plot(ds["amplitude"], ds["pres"], color="purple",
                           marker="o", ms=3, ls="--",
                           label="Half-range amplitude")
-        _plot_reference_pressure(
-            amp_ax_i, reference_pres,
-            label=f"Reference ({reference_pres:g} hPa)")
+        _plot_reference_pressure(amp_ax_i, reference_pres)
         amp_ax_i.set_xlabel(f"Amplitude{units}")
         amp_ax_i.set_ylabel("Pressure [hPa]")
         amp_ax_i.set_title("Amplitude")
@@ -283,22 +280,12 @@ def plot_phase_amplitude(fits, title="QBO phase and amplitude",
         _plot_reference_pressure(phase_ax_i, reference_pres)
         extent_specs = (_vertical_extent_specs(ds)
                         if show_vertical_extent else [])
-        for spec in extent_specs:
-            amp_ax_i.axhline(spec["value"], color="green", lw=1.5,
-                             ls=spec["linestyle"], label=spec["label"])
-            #amp_ax_i.annotate(
-            #    f"{spec['value']:.3g} hPa",
-            #    xy=(0.99, spec["value"]), xycoords=("axes fraction", "data"),
-            #    xytext=(0, -2),
-            #    textcoords="offset points", ha="right",
-            #    va="top", color="0.4", fontsize=8)
-            phase_ax_i.axhline(spec["value"], color="green", lw=1.5,
-                               ls=spec["linestyle"])
+
         phase_ax_i.set_xlim(*phase_limits)
         phase_ax_i.set_xticks(phase_ticks, phase_labels)
-        phase_ax_i.set_xlabel("Phase (radians)")
+        phase_ax_i.set_xlabel("Phase [radians]")
         phase_ax_i.set_title("Phase")
-        phase_ax_i.set_ylabel("Pressure (hPa)")
+        phase_ax_i.set_yticklabels("")
 
         for ax in (amp_ax_i, phase_ax_i):
             ax.set_yscale("log")
@@ -333,13 +320,52 @@ def plot_phase_amplitude(fits, title="QBO phase and amplitude",
             legend_items.setdefault(label, handle)
 
     amp_ax_i.legend(legend_items.values(), legend_items.keys(),
-               loc='lower center', bbox_to_anchor=(1.2, -0.8), ncols=2,
+               loc='lower center', bbox_to_anchor=(0.6, -0.6), ncols=1,
                frameon=False)
     if created_fig:
         fig.suptitle(title)
+    phase_ax_i.set_yticklabels("")
+    phase_ax_i.set_ylim([200, 1])
+    amp_ax_i.set_ylim([200, 1])
     return fig
 
 
+def plot_descent_rate(result, title="Zero-wind descent rate",
+                      reference_pres=30.0, ax=None):
+    """Plot composite descent-rate profiles and cycle-to-cycle spread."""
+    if ax is None:
+        fig, ax = plt.subplots(figsize=(5.5, 5), constrained_layout=True)
+    else:
+        fig = ax.figure
+    colours = {"easterly": "blue", "westerly": "red"}
+    pressure = np.asarray(result["pres"].values, dtype=float)
+    plotted = False
+    for shear in result["shear"].values:
+        colour = colours[str(shear)]
+        profile = result.sel(shear=shear)
+        rate = np.asarray(profile["descent_rate"].values, dtype=float)
+        std = np.asarray(profile["std_descent_rate"].values, dtype=float)
+        valid = np.isfinite(pressure) & np.isfinite(rate)
+        plotted |= valid.any()
+        label = (f"{str(shear).capitalize()} onset")
+        ax.plot(rate, pressure, color=colour, lw=2, label=label)
+        spread_valid = valid & np.isfinite(std)
+        ax.fill_betweenx(pressure, rate - std, rate + std,
+                         where=spread_valid, color=colour, alpha=0.15)
+    if not plotted:
+        plt.close(fig)
+        raise ValueError("No finite descent-rate profile values to plot")
+    ax.axvline(0, color="0.7", lw=0.8)
+    ax.set_xlabel("Downward rate\n [hPa month$^{-1}$]")
+    ax.set_yscale("log")
+    ax.set_ylim([200, 1])
+    ax.set_xlim([-10, 30])
+    _plot_reference_pressure(ax, reference_pres)
+    ax.set_yticklabels("")
+    ax.set_title(title)
+    ax.grid(color="0.9", lw=0.8)
+    ax.legend(frameon=False, loc='lower center', bbox_to_anchor=(0.5, -0.6), ncols=1)
+    return fig
 
 
 if __name__ == "__main__":
@@ -366,32 +392,54 @@ if __name__ == "__main__":
         westerly_equatorial = westerly_composite.sel(latitude=0)
         cycles = xr.open_dataset(DATA_LOC + 'ACE_V5.3_%s_westerly_eq_cyles.nc' % var)
         cycle_fits = {v: cycles,}
+        descent = xr.open_dataset(DATA_LOC + 'ACE_V5.3_%s_descent.nc' % var)
 
         fig = plt.figure(figsize=(7, 6))
         fig.suptitle("ACE-FTS %s" % latex_names[vid], y=0.93)
 
-        outer_gs = fig.add_gridspec(2, 1, hspace=0.6)
-        top_gs = outer_gs[0].subgridspec(1, 2, wspace=0.5)
-        bottom_gs = outer_gs[1].subgridspec(1, 3, wspace=0.5)
-        ax00 = plt.subplot(top_gs[0, 0])
+        outer = fig.add_gridspec(2, 1, hspace=0.45)
+        # Top row: [two axes | colorbar], all inside the same width as the bottom row
+        top = outer[0].subgridspec(1, 2, width_ratios=[1, 0.03], wspace=0.03)
+        top_axes = top[0].subgridspec(1, 2, wspace=0.1)
+        top_left = fig.add_subplot(top_axes[0])
+        top_right = fig.add_subplot(top_axes[1])
+        cax = fig.add_subplot(top[1])
+
+        # Bottom row: solo axis (1/4 width) + group of three (3/4 width)
+        bottom = outer[1].subgridspec(1, 2, width_ratios=[1, 3], wspace=0.3)
+        solo = fig.add_subplot(bottom[0])
+
+        group = bottom[1].subgridspec(1, 3, wspace=0.1)
+        b1 = fig.add_subplot(group[0])
+        b2 = fig.add_subplot(group[1])
+        b3 = fig.add_subplot(group[2])
+
+        cblevels = np.arange(SETTINGS['ACE_vmin'][vid], SETTINGS['ACE_vmax'][vid], SETTINGS['ACE_freq'][vid])
         plot_composite(
             westerly_equatorial[v], x="lag", x_label="Lag [months]",
-            title="Westerly Composite", cb_label="%s anomaly [%s]" % (latex_names[vid], units[vid]),
-            overlay=westerly_u["u"].sel(latitude=0), overlay_step=10.0, ax=ax00)
+            title="Westerly Composite",
+            overlay=westerly_u["u"].sel(latitude=0), overlay_step=10.0, ax=top_left, levels=cblevels)
 
-        ax01 = plt.subplot(top_gs[0, 1])
-        plot_composite(
+        cs = plot_composite(
             westerly_composite[v].sel(lag=0),
             x="latitude", x_label="Latitude [$^{\\circ}$]",
-            title="Westerly Composite at lag=0", cb_label="%s anomaly [%s]" % (latex_names[vid], units[vid]),
-            overlay=westerly_u["u"].sel(lag=0), overlay_step=10.0, ax=ax01)
+            title="Westerly Composite at lag=0",
+            overlay=westerly_u["u"].sel(lag=0), overlay_step=10.0, ax=top_right, y_label=None, levels=cblevels)
+        top_right.set_yticklabels("")
+        cbar = fig.colorbar(cs, cax=cax)
+        cbar.set_label("%s anomaly [%s]" % (latex_names[vid], units[vid]))
 
-        ax00 = plt.subplot(bottom_gs[0, 0])
-        plot_period_fits(cycle_fits, ax=ax00, y_label="%s anomaly at 30 hPa [%s]" % (latex_names[vid], units[vid]))
+        plot_period_fits(cycle_fits, ax=solo, y_label="%s anomaly at 30 hPa [%s]" % (latex_names[vid], units[vid]))
+        plot_phase_amplitude(cycle_fits, amp_ax=b1, phase_ax=b2)
+        plot_descent_rate(descent, ax=b3)
 
-        ax01 = plt.subplot(bottom_gs[0, 1])
-        ax02 = plt.subplot(bottom_gs[0, 2])
-        plot_phase_amplitude(cycle_fits, amp_ax=ax01, phase_ax=ax02)
+        top_left.text(0.03, 0.9, '(a)', transform=top_left.transAxes, fontsize=9)
+        top_right.text(0.03, 0.9, '(b)', transform=top_right.transAxes, fontsize=9)
+        solo.text(0.03, 0.9, '(c)', transform=solo.transAxes, fontsize=9)
+        b1.text(0.8, 0.9, '(d)', transform=b1.transAxes, fontsize=9)
+        b2.text(0.03, 0.9, '(e)', transform=b2.transAxes, fontsize=9)
+        b3.text(0.03, 0.9, '(f)', transform=b3.transAxes, fontsize=9)
+
 
         plt.subplots_adjust(bottom=0.2)
         plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/ACE_V5.3_%s_westerly_amp_phase_period.png' % var)

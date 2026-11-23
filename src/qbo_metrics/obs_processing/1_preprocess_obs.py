@@ -103,8 +103,8 @@ def prep_osiris_nox(anom=True, percent=False):
 def prep_osiris_o3(anom=True, percent=False):
     data = xr.open_dataset('/Volumes/Users/krd020/postdoc/data/sat_data/OSIRIS/osiris_v74_ozone_MZM_vmr_plevs_10deg.nc').load()
     data = data.rename({'pressure': 'p', 'latitude': 'lat'})
-    data = data[['ozone_concentration']]
-    data['ozone_concentration'] *= 1e6
+    data = data[['ozone_vmr']]
+    data['ozone_vmr'] *= 1e6
     data = data.sel(p=slice(150, 1))
     # remove non-qbo variability  
     if anom:
@@ -112,9 +112,9 @@ def prep_osiris_o3(anom=True, percent=False):
         data = data.groupby('time.month') - mean
         if percent: 
             data = data / mean.mean('month')
-        detrended = standard_trends(data, 'ozone_concentration', anom=True)
+        detrended = standard_trends(data, 'ozone_vmr', anom=True)
     else:
-        detrended = standard_trends(data, 'ozone_concentration', anom=False)
+        detrended = standard_trends(data, 'ozone_vmr', anom=False)
     return detrended
 
 
@@ -249,8 +249,8 @@ if __name__ == "__main__":
     d = prep_osiris_o3()
     d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/OSIRIS_V7.4_O3_MZM_anom_2002-2025_for_qbo_metrics.nc')
 
-    d = prep_osiris_nox()
-    d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/OSIRIS_V7.4_NOx_MZM_anom_2002-2025_for_qbo_metrics.nc')
+    #d = prep_osiris_nox()
+    #d.to_netcdf('/Volumes/Users/krd020/postdoc/ISSI_QBO/data/OSIRIS_V7.4_NOx_MZM_anom_2002-2025_for_qbo_metrics.nc')
 
     """
     for var in ['O3', 'H2O']:

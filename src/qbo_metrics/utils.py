@@ -11,7 +11,7 @@ VAR_ALIASES = {
     "T": ["T", "t", "ta", "temp", "temperature", "air_temperature"],
     "o3": ["o3", "O3", "ozone", "go3", "ozone_mass_mixing_ratio",
            "mole_fraction_of_ozone_in_air", "mole_fraction_of_o3_in_air",
-           "mass_fraction_of_ozone_in_air", "ozone_concentration"],
+           "mass_fraction_of_ozone_in_air", "ozone_vmr"],
     "n2o": ['n2o', 'N2O'],
     "hcl": ['hcl', 'HCl'],
     "hno3": ['hno3', 'HNO3'],

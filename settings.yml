@@ -20,14 +20,23 @@ SHEAR_TYPES: ["westerly", "easterly"]
 MLS_VARS: ['O3', 'temp', 'HCl', 'HNO3', 'N2O', 'H2O', 'CO']
 MLS_latex_names: ['O$_3$', 'T', 'HCl', 'HNO$_3$', 'N$_2$O', 'H$_2$O', 'CO']
 MLS_units: ['ppm', 'K', 'ppb', 'ppb', 'ppb', 'ppm', 'ppb']
+MLS_vmin: [-0.7, -5, -0.2, -0.9, -32, -0.5, -12]
+MLS_vmax: [0.71, 5.5, 0.202, 0.91, 33, 0.505, 13]
+MLS_freq: [0.1, 0.5, 0.02, 0.1, 3, 0.05, 1]
 
 OSIRIS_VARS: ['NOx', 'O3']
 OSIRIS_latex_names: ['NO$_\mathrm{x}$', 'O$_3$']
 OSIRIS_units: ['ppb', 'ppm']
+OSIRIS_vmin: [-1.6, -0.7]
+OSIRIS_vmax: [1.8, 0.71]
+OSIRIS_freq: [0.2, 0.1]
 
 ACE_VARS: ['O3', 'HNO3', 'HCl', 'CH4', 'N2O', 'CCl2F2', 'ClONO2', 'NOy', 'H2O']
 ACE_latex_names: ['O$_3$', 'HNO$_3$', 'HCl', 'CH$_4$', 'N$_2$O', 'CCl$_2$F$_2$', 'ClONO$_2$', 'NO$_\mathrm{y}$', 'H$_2$O']
 ACE_units: ['ppm', 'ppb', 'ppb', 'ppb', 'ppb', 'ppb', 'ppb', 'ppb', 'ppb', 'ppm']
+ACE_vmin: [-0.7, -0.9, -0.2, -120, -32, -0.06, -0.12, -2, -0.5]
+ACE_vmax: [0.71, 0.91, 0.202, 130, 33, 0.065, 0.13, 2.1, 0.505]
+ACE_freq: [0.1, 0.1, 0.02, 10, 1, 0.005, 0.01, 0.01, 0.05]
 
 ##
 ## end of control file

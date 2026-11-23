@@ -32,13 +32,13 @@ def _get_composites(ds_monthly, dates):
 if __name__ == "__main__":
 
     SETTINGS = load_control_file()
-    EXCLUDED_ONSET_YEARS = SETTINGS['EXCLUDED_ONSET_YEARS']
     SHEAR_TYPES = SETTINGS['SHEAR_TYPES']
     DATA_LOC = SETTINGS['data_save_path']
     FIG_LOC = SETTINGS['fig_save_path']
     ROOT_LOC = SETTINGS['root_path']
 
     for var in SETTINGS['MLS_VARS']:
+        EXCLUDED_ONSET_YEARS = SETTINGS['EXCLUDED_ONSET_YEARS']
         if var in ['temp']:
             v = 'T'
         else:
@@ -139,3 +139,4 @@ if __name__ == "__main__":
         descent = descent_rate(u_composites, cycles=descent_cycle_windows)
         fig = plot_descent_rate(descent)
         plt.savefig(FIG_LOC + 'MLS_V6.0_%s_descent.png' % var)
+        descent.to_netcdf(DATA_LOC + 'MLS_V6.0_%s_descent.nc' % var)

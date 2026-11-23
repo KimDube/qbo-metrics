@@ -32,13 +32,13 @@ def _get_composites(ds_monthly, dates):
 if __name__ == "__main__":
 
     SETTINGS = load_control_file()
-    EXCLUDED_ONSET_YEARS = SETTINGS['EXCLUDED_ONSET_YEARS']
     SHEAR_TYPES = SETTINGS['SHEAR_TYPES']
     DATA_LOC = SETTINGS['data_save_path']
     FIG_LOC = SETTINGS['fig_save_path']
     ROOT_LOC = SETTINGS['root_path']
 
     for var in SETTINGS['ACE_VARS']:
+        EXCLUDED_ONSET_YEARS = SETTINGS['EXCLUDED_ONSET_YEARS']
         print(var)
         v = var.lower()
         ds_daily, ds_monthly = load_data(DATA_LOC + "ACE_V5.3_%s_MZM_anom_2004-2026_for_qbo_metrics.nc" % var, variables=[v])
@@ -48,6 +48,10 @@ if __name__ == "__main__":
             ds_monthly = ds_monthly.sel(pres=slice(3, 100)) 
         if var in ['ClONO2', 'NOy']:
             ds_monthly = ds_monthly.sel(pres=slice(6, 60)) 
+
+        if var in ['H2O']:  # remove Hunga 
+            ds_monthly = ds_monthly.sel(pres=slice(0.5, 100)) 
+            EXCLUDED_ONSET_YEARS.append(2022)
 
         dates = xr.open_dataset(ROOT_LOC + 'reference_dates.nc')
         westerly_u = xr.open_dataset(ROOT_LOC + '/qbo_composite_westerly_exclude_2015_2020.nc')
@@ -137,3 +141,4 @@ if __name__ == "__main__":
         descent = descent_rate(u_composites, cycles=descent_cycle_windows)
         fig = plot_descent_rate(descent)
         plt.savefig(FIG_LOC + 'ACE_V5.3_%s_descent.png' % var)
+        descent.to_netcdf(DATA_LOC + 'ACE_V5.3_%s_descent.nc' % var)

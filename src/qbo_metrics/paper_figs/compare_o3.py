@@ -1,40 +1,13 @@
 import numpy as np
 import xarray as xr
-from matplotlib import colors, pyplot as plt, ticker
+from matplotlib import pyplot as plt, ticker
 import matplotlib
-import matplotlib.gridspec as gridspec
 matplotlib.use("Agg") 
 plt.style.use('/Users/krd020/Documents/qbo-metrics/plot_style.mplstyle')
 
+from qbo_metrics.metrics import zero_crossing_period_range
+from qbo_metrics.utils import load_control_file
 
-
-from qbo_metrics.composite import (compute_composite, extract_events)
-from qbo_metrics.metrics import (cycle_coherence, daily_composite_period, descent_rate,
-                     latitudinal_width, max_min_amplitude, phase_amplitude,
-                     zero_crossing_period_range)
-from qbo_metrics.plotting import (plot_composite, plot_cycle_coherence,
-                      plot_cycle_summary, plot_descent_rate, plot_period_fits, plot_phase_amplitude)
-from qbo_metrics.utils import  load_data
-
-
-# Workflow settings.
-EXCLUDED_ONSET_YEARS = (2015, 2020, 2022)
-SHEAR_TYPES = ("westerly", "easterly")
-
-
-def _get_composites(ds_monthly, dates):
-    """Build composites"""
-    composites = {}
-    for shear in SHEAR_TYPES:
-        onset_dates = dates[shear + '_onset_date']
-        composites[shear] = compute_composite(
-            ds_monthly,
-            onset_dates,
-            exclude_years=EXCLUDED_ONSET_YEARS,
-            detrend=False,
-            deseasonalise=False
-        )
-    return composites
 
 
 def _plot_reference_pressure(ax, pressure=30.0, label=None, linewidth=1.0):
@@ -43,53 +16,6 @@ def _plot_reference_pressure(ax, pressure=30.0, label=None, linewidth=1.0):
         return None
     return ax.axhline(float(pressure), color="0.3", lw=linewidth, ls="--",
                       alpha=0.8, label=label)
-
-
-def plot_composite(da, x, title="", x_label="", overlay=None,
-                   overlay_step=None, overlay_color="k",
-                   overlay_linestyles=None, pres_range=(1, 200), ax=None,
-                   reference_pres=30.0, cb_label=None, levels=None):
-    """Plot a pressure--``x`` composite as filled contours.
-
-    Fill levels use a zero-centred diverging scale. ``overlay`` adds labelled
-    line contours at ``overlay_step`` intervals. Pressure defaults to
-    1--200 hPa; ``ax`` selects an existing Matplotlib axes. A dashed line
-    marks ``reference_pres`` when it is not ``None``.
-    """
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
-    else:
-        fig = ax.figure
-    if pres_range is not None:
-        da = da.sel(pres=slice(*sorted(pres_range)))
-        if overlay is not None:
-            overlay = overlay.sel(pres=da["pres"], method='nearest')
-    lim = float(abs(da).max())
-    if levels is None:
-        levels = ticker.MaxNLocator(nbins=20, symmetric=True).tick_values(-lim, lim)
-    
-    cs = ax.contourf(da[x], da["pres"], da.transpose("pres", x), levels=levels, cmap="RdBu_r")
-    if overlay is not None:
-        if overlay_step is None:
-            raise ValueError("overlay_step must be given with overlay")
-        olevels = ticker.MultipleLocator(overlay_step).tick_values(float(overlay.min()), float(overlay.max()))
-        widths = np.where(olevels == 0, 1.8, 0.8)
-        cl = ax.contour(overlay[x], overlay["pres"], overlay.transpose("pres", x),
-                        levels=olevels, colors=overlay_color, linewidths=widths, linestyles=overlay_linestyles)
-        ax.clabel(cl, fontsize=8, fmt="%g")
-    ax.set_yscale("log")
-    if pres_range is None:
-        ax.invert_yaxis()
-    else:
-        ax.set_ylim(max(pres_range), min(pres_range))
-    _plot_reference_pressure(ax, reference_pres)
-    if x == "lag":
-        ax.axvline(0, color="0.25", lw=0.8, ls="--", alpha=0.7)
-    ax.set_xlabel(x_label)
-    ax.set_ylabel("Pressure [hPa]")
-    ax.set_title(title)
-    fig.colorbar(cs, ax=ax, label=cb_label)
-    return fig
 
 
 def _expand_shear_fits(fits):
@@ -102,48 +28,6 @@ def _expand_shear_fits(fits):
         else:
             expanded.append((name, ds))
     return expanded
-
-
-def plot_period_fits(fits, ax=None, y_label=None):
-    """Plot reference-pressure profiles and their sinusoidal fits.
-
-    ``fits`` maps labels to ``phase_amplitude`` results. Each panel reports
-    period, half-range amplitude, sine-fit amplitude and phase.
-    """
-    expanded = _expand_shear_fits(fits)
-    var, ds = expanded[0]
-    if ax is None:
-        fig, ax = plt.subplots(figsize=(8, 4), constrained_layout=True)
-    else:
-        fig = ax.figure
-
-    reference_pres = ds.attrs.get("reference_pres", 30.0)
-    f = (ds.sel(pres=reference_pres) if reference_pres in ds["pres"]
-            else ds.interp(pres=reference_pres))
-    period = float(ds["period"])
-
-    ax.grid(True)
-    ax.axhline(0, color="0.85", lw=1)
-    ax.axvline(0, color="0.25", lw=0.8, ls="--", alpha=0.7)
-    ax.plot(f["lag"], f["profile"], color="red", lw=2,
-            label="Composite")
-    ax.plot(f["lag"], f["fit"], color="blue", lw=2, label="Sine fit")
-    ax.set_xlabel("Lag [months]")
-    if y_label is None:
-        ax.set_ylabel(f"{var} anomaly at 30 hPa")
-    else:
-        ax.set_ylabel(y_label)
-    period_text = f"Period: {period:.1f} months"
-    if "period_by_composite" in ds:
-        components = ", ".join(
-            f"{name}: {float(value):.1f}"
-            for name, value in zip(ds["period_composite"].values,
-                                    ds["period_by_composite"].values))
-        period_text += f" (mean of {components})"
-    ax.set_title(f"{period_text}")
-    handles, labels = ax.get_legend_handles_labels()
-    ax.legend(handles, labels, ncols=1, frameon=False, loc='lower center', bbox_to_anchor=(0.5, -0.7))
-    return fig
 
 
 def _wrapped_phase_line(phase, pres, phase_limits=(-np.pi, np.pi)):
@@ -200,70 +84,125 @@ def _wrapped_phase_line(phase, pres, phase_limits=(-np.pi, np.pi)):
     return np.asarray(plot_phase), np.asarray(plot_pres), marker_phase
 
 
-def _vertical_extent_specs(source):
-    """Return finite top and bottom extent values with plot metadata."""
-    if source is None:
-        return []
-    specs = []
-    for boundary, name, linestyle in (
-            ("top", "vertical_extent_top", "-."),
-            ("bottom", "vertical_extent_bottom", ":")):
-        if name not in source:
-            continue
-        data = source[name]
-        value = float(data)
-        if not np.isfinite(value):
-            continue
-        fraction = getattr(data, "attrs", {}).get("fraction", 0.1)
-        specs.append({
-            "boundary": boundary,
-            "value": value,
-            "fraction": fraction,
-            "linestyle": linestyle,
-            "label": f"{boundary.capitalize()} {fraction:.0%} extent",
-        })
-    return specs
 
 
-def plot_phase_amplitude(fits, title="QBO phase and amplitude",
-                         show_vertical_extent=True,
-                         phase_limits=(-np.pi, np.pi),
-                         pres_range=(1, 200),
-                         amp_ax=None, phase_ax=None):
-    """Plot half-range amplitude, sine-fit amplitude and phase profiles.
+if __name__ == "__main__":
 
-    ``fits`` maps labels to ``phase_amplitude`` results. Each row shows
-    half-range amplitude, sine-fit amplitude and wrapped phase.
-    ``show_vertical_extent`` marks the top and bottom sine-fit amplitude
-    thresholds; ``phase_limits`` controls phase wrapping.
+    SETTINGS = load_control_file()
+    EXCLUDED_ONSET_YEARS = SETTINGS['EXCLUDED_ONSET_YEARS']
+    SHEAR_TYPES = SETTINGS['SHEAR_TYPES']
+    DATA_LOC = SETTINGS['data_save_path']
+    FIG_LOC = SETTINGS['fig_save_path']
+    ROOT_LOC = SETTINGS['root_path']
 
-    ``amp_ax`` and ``phase_ax`` optionally supply existing axes to draw
-    into. Provide both or neither. Each may be a single Axes (only if
-    ``fits`` expands to one row) or a sequence of Axes, one per row. If
-    omitted, a new figure is created. The figure title is only set on
-    figures created here.
-    """
-    expanded = _expand_shear_fits(fits)
-    n_rows = len(expanded)
+    dates = xr.open_dataset(ROOT_LOC + 'reference_dates.nc')
+    westerly_u = xr.open_dataset(ROOT_LOC + '/qbo_composite_westerly_exclude_2015_2020.nc')
+    period_range = zero_crossing_period_range(dates, exclude_years=EXCLUDED_ONSET_YEARS)
 
-    if (amp_ax is None) != (phase_ax is None):
-        raise ValueError("Provide both amp_ax and phase_ax, or neither.")
+    ace_westerly_composite = xr.open_dataset(DATA_LOC + 'ACE_V5.3_O3_westerly_composite.nc')
+    ace_westerly_equatorial = ace_westerly_composite.sel(latitude=0)
+    ace_cycles = xr.open_dataset(DATA_LOC + 'ACE_V5.3_O3_westerly_eq_cyles.nc')
+    ace_cycle_fits = {'o3': ace_cycles,}
+    ace_descent = xr.open_dataset(DATA_LOC + 'ACE_V5.3_O3_descent.nc')
 
-    if amp_ax is None:
-        fig, axes = plt.subplots(n_rows, 2, squeeze=False,
-                                 figsize=(9, 3.5 * n_rows),
-                                 constrained_layout=True, sharey="row")
-        amp_axes, phase_axes = list(axes[:, 0]), list(axes[:, 1])
-        created_fig = True
-    else:
-        amp_axes = list(np.atleast_1d(amp_ax).ravel())
-        phase_axes = list(np.atleast_1d(phase_ax).ravel())
-        if len(amp_axes) != n_rows or len(phase_axes) != n_rows:
-            raise ValueError(
-                f"Expected {n_rows} axes in each of amp_ax and phase_ax "
-                f"(one per row); got {len(amp_axes)} and {len(phase_axes)}.")
-        fig = amp_axes[0].figure
-        created_fig = False
+    os_westerly_composite = xr.open_dataset(DATA_LOC + 'OSIRIS_V7.4_O3_westerly_composite.nc')
+    os_westerly_equatorial = os_westerly_composite.sel(latitude=0)
+    os_cycles = xr.open_dataset(DATA_LOC + 'OSIRIS_V7.4_O3_westerly_eq_cyles.nc')
+    os_cycle_fits = {'o3': os_cycles,}
+    os_descent = xr.open_dataset(DATA_LOC + 'OSIRIS_V7.4_O3_descent.nc')
+
+    mls_westerly_composite = xr.open_dataset(DATA_LOC + 'MLS_V6.0_O3_westerly_composite.nc')
+    mls_westerly_equatorial = mls_westerly_composite.sel(latitude=0)
+    mls_cycles = xr.open_dataset(DATA_LOC + 'MLS_V6.0_O3_westerly_eq_cyles.nc')
+    mls_cycle_fits = {'o3': mls_cycles,}
+    mls_descent = xr.open_dataset(DATA_LOC + 'MLS_V6.0_O3_descent.nc')
+
+    # plot
+    # top row: difference between ace/osiris composites and mls
+    # bottom row: comparison of period, amplitude, phase, descent
+    reference_pres = 30.0
+
+    fig = plt.figure(figsize=(8, 6))
+    fig.suptitle("O$_3$", y=0.95)
+    outer_gs = fig.add_gridspec(2, 1, hspace=0.6)
+    top_gs = outer_gs[0].subgridspec(1, 3, wspace=0.8)
+    bottom_gs = outer_gs[1].subgridspec(1, 4, wspace=0.2)
+
+    ax00 = plt.subplot(top_gs[0, 0])
+    diff = mls_westerly_composite.interp(pres=os_westerly_composite.pres).sel(lag=0).o3 - os_westerly_composite.sel(lag=0).o3
+    cs = ax00.contourf(diff.latitude, diff.pres, diff, levels=np.arange(-0.3, 0.305, 0.05), cmap="PiYG_r", extend='both')
+    ax00.set_yscale("log")
+    ax00.invert_yaxis()
+    _plot_reference_pressure(ax00, reference_pres)
+    ax00.set_xlabel("Latitude [$^{\\circ}$]")
+    ax00.set_ylabel("Pressure [hPa]")
+    ax00.set_title("Westerly composite\n lag=0")
+    fig.colorbar(cs, ax=ax00, label="MLS$-$OSIRIS [ppm]")
+
+    ax01 = plt.subplot(top_gs[0, 1])
+    diff = mls_westerly_composite.interp(pres=os_westerly_composite.pres).sel(lag=0).o3 - ace_westerly_composite.sel(lag=0).o3
+    cs = ax01.contourf(diff.latitude, diff.pres, diff, levels=np.arange(-0.3, 0.305, 0.05), cmap="PiYG_r", extend='both')
+    ax01.set_yscale("log")
+    ax01.invert_yaxis()
+    _plot_reference_pressure(ax01, reference_pres)
+    ax01.set_xlabel("Latitude [$^{\\circ}$]")
+    ax01.set_ylabel("Pressure [hPa]")
+    ax01.set_title("Westerly composite\n lag=0")
+    fig.colorbar(cs, ax=ax01, label="MLS$-$ACE-FTS [ppm]")
+
+    ax00 = plt.subplot(top_gs[0, 2])
+    ax00.grid(True)
+    ax00.axhline(0, color="0.85", lw=1)
+    ax00.axvline(0, color="0.25", lw=0.8, ls="--", alpha=0.7)
+    expanded = _expand_shear_fits(mls_cycle_fits)
+    var, ds = expanded[0]
+    f = (ds.sel(pres=reference_pres) if reference_pres in ds["pres"]
+            else ds.interp(pres=reference_pres))
+    period = float(ds["period"])
+    ax00.plot(f["lag"], f["profile"], color="red", label="MLS (T=%.1f months)" % period)
+    expanded = _expand_shear_fits(os_cycle_fits)
+    var, ds = expanded[0]
+    f = (ds.sel(pres=reference_pres) if reference_pres in ds["pres"]
+            else ds.interp(pres=reference_pres))
+    period = float(ds["period"])
+    ax00.plot(f["lag"], f["profile"], color="blue", label="OSIRIS (T=%.1f months)" % period)
+    expanded = _expand_shear_fits(ace_cycle_fits)
+    var, ds = expanded[0]
+    f = (ds.sel(pres=reference_pres) if reference_pres in ds["pres"]
+            else ds.interp(pres=reference_pres))
+    period = float(ds["period"])
+    ax00.plot(f["lag"], f["profile"], color="orange", label="ACE-FTS (T=%.1f months)" % period)
+
+    ax00.set_title("Period")
+    ax00.set_xlabel("Lag [months]")
+    ax00.set_ylabel(f"O$_3$ anomaly at 30 hPa [ppm]")
+    handles, labels = ax00.get_legend_handles_labels()
+
+
+    ax01 = plt.subplot(bottom_gs[0, 0])
+
+    expanded = _expand_shear_fits(mls_cycle_fits)
+    var, ds = expanded[0]
+    ax01.plot(ds["amplitude"], ds["pres"], color="red")
+    expanded = _expand_shear_fits(os_cycle_fits)
+    var, ds = expanded[0]
+    ax01.plot(ds["amplitude"], ds["pres"], color="blue")
+    expanded = _expand_shear_fits(ace_cycle_fits)
+    var, ds = expanded[0]
+    ax01.plot(ds["amplitude"], ds["pres"], color="orange")
+    ax01.invert_yaxis()
+    ax01.set_yscale("log")
+    ax01.grid(True)
+    ax01.set_title("Half-range amplitude")
+    ax01.set_xlabel("Amplitude [ppm]")
+    ax01.set_ylabel("Pressure [hPa]")
+    ax01.set_ylim([200, 1])
+    _plot_reference_pressure(ax01, reference_pres)
+    ax01.legend(handles, labels, ncols=3, frameon=False, loc='lower center', bbox_to_anchor=(2.2, -0.6))
+
+
+    ax02 = plt.subplot(bottom_gs[0, 1])
+    phase_limits=(-np.pi, np.pi)
 
     lower, upper = phase_limits
     half_pi = np.pi / 2
@@ -283,194 +222,138 @@ def plot_phase_amplitude(fits, title="QBO phase and amplitude",
 
     phase_labels = [pi_label(value) for value in phase_ticks]
 
-    for (var, ds), amp_ax_i, phase_ax_i in zip(expanded, amp_axes,
-                                               phase_axes):
-        units = ds["profile"].attrs.get("units", "")
-        units = f" ({units})" if units else ""
-        reference_pres = ds.attrs.get("reference_pres", 30.0)
 
-        amp_ax_i.plot(ds["amp"], ds["pres"], color="b", marker="o",
-                      ms=3, label="Sine-fit amplitude")
-        if "amplitude" in ds:
-            amp_ax_i.plot(ds["amplitude"], ds["pres"], color="purple",
-                          marker="o", ms=3, ls="--",
-                          label="Half-range amplitude")
-        _plot_reference_pressure(
-            amp_ax_i, reference_pres,
-            label=f"Reference ({reference_pres:g} hPa)")
-        amp_ax_i.set_xlabel(f"Amplitude{units}")
-        amp_ax_i.set_ylabel("Pressure [hPa]")
-        amp_ax_i.set_title("Amplitude")
+    expanded = _expand_shear_fits(mls_cycle_fits)
+    var, ds = expanded[0]
+    phase_line, phase_pres, phase_markers = _wrapped_phase_line(
+        ds["phase"], ds["pres"], phase_limits=phase_limits)
+    ax02.plot(phase_line, phase_pres, color="r")
 
-        phase_ax_i.axvline(0, color="0.85", lw=1)
-        phase_line, phase_pres, phase_markers = _wrapped_phase_line(
-            ds["phase"], ds["pres"], phase_limits=phase_limits)
-        phase_ax_i.plot(phase_line, phase_pres, color="r")
-        phase_ax_i.plot(phase_markers, ds["pres"], color="r", ls="none",
-                        marker="o", ms=3)
-        _plot_reference_pressure(phase_ax_i, reference_pres)
-        extent_specs = (_vertical_extent_specs(ds)
-                        if show_vertical_extent else [])
-        for spec in extent_specs:
-            amp_ax_i.axhline(spec["value"], color="green", lw=1.5,
-                             ls=spec["linestyle"], label=spec["label"])
-            #amp_ax_i.annotate(
-            #    f"{spec['value']:.3g} hPa",
-            #    xy=(0.99, spec["value"]), xycoords=("axes fraction", "data"),
-            #    xytext=(0, -2),
-            #    textcoords="offset points", ha="right",
-            #    va="top", color="0.4", fontsize=8)
-            phase_ax_i.axhline(spec["value"], color="green", lw=1.5,
-                               ls=spec["linestyle"])
-        phase_ax_i.set_xlim(*phase_limits)
-        phase_ax_i.set_xticks(phase_ticks, phase_labels)
-        phase_ax_i.set_xlabel("Phase (radians)")
-        phase_ax_i.set_title("Phase")
-        phase_ax_i.set_ylabel("Pressure (hPa)")
+    expanded = _expand_shear_fits(os_cycle_fits)
+    var, ds = expanded[0]
+    phase_line, phase_pres, phase_markers = _wrapped_phase_line(
+        ds["phase"], ds["pres"], phase_limits=phase_limits)
+    ax02.plot(phase_line, phase_pres, color="blue")
 
-        for ax in (amp_ax_i, phase_ax_i):
-            ax.set_yscale("log")
-            ax.grid(color="0.9", lw=0.8)
-
-        # User-supplied axes may not share a y-axis, so only rely on
-        # sharing when it is actually in place.
-        y_shared = amp_ax_i.get_shared_y_axes().joined(amp_ax_i, phase_ax_i)
-        if pres_range is None:
-            amp_ax_i.invert_yaxis()
-            if not y_shared:
-                phase_ax_i.invert_yaxis()
-        else:
-            top, bottom = sorted(pres_range)
-            for spec in extent_specs:
-                if spec["boundary"] == "top":
-                    top = min(top, spec["value"])
-                    if spec["value"] < min(pres_range):
-                        top = min(top, float(ds["pres"].min()))
-                else:
-                    bottom = max(bottom, spec["value"])
-                    if spec["value"] > max(pres_range):
-                        bottom = max(bottom, float(ds["pres"].max()))
-            amp_ax_i.set_ylim(bottom, top)
-            if not y_shared:
-                phase_ax_i.set_ylim(bottom, top)
-
-    legend_items = {}
-    for ax in amp_axes:
-        handles, labels = ax.get_legend_handles_labels()
-        for handle, label in zip(handles, labels):
-            legend_items.setdefault(label, handle)
-
-    amp_ax_i.legend(legend_items.values(), legend_items.keys(),
-               loc='lower center', bbox_to_anchor=(1.2, -0.8), ncols=2,
-               frameon=False)
-    if created_fig:
-        fig.suptitle(title)
-    return fig
+    expanded = _expand_shear_fits(ace_cycle_fits)
+    var, ds = expanded[0]
+    phase_line, phase_pres, phase_markers = _wrapped_phase_line(
+        ds["phase"], ds["pres"], phase_limits=phase_limits)
+    ax02.plot(phase_line, phase_pres, color="orange")
+    _plot_reference_pressure(ax02, reference_pres)
+    ax02.set_xlim(*phase_limits)
+    ax02.set_xticks(phase_ticks, phase_labels)
+    ax02.invert_yaxis()
+    ax02.set_yscale("log")
+    ax02.grid(True)
+    ax02.set_title("Phase")
+    ax02.set_xlabel("Phase [radians]")
+    ax02.set_yticklabels([])
+    ax02.set_ylim([200, 1])
 
 
+    ax03 = plt.subplot(bottom_gs[0, 2])
+    pressure = np.asarray(mls_descent["pres"].values, dtype=float)
+    shear = 'westerly'
+    profile = mls_descent.sel(shear=shear)
+    rate = np.asarray(profile["descent_rate"].values, dtype=float)
+    std = np.asarray(profile["std_descent_rate"].values, dtype=float)
+    valid = np.isfinite(pressure) & np.isfinite(rate)
+    label = (f"{str(shear).capitalize()} onset "
+                f"({float(profile['mean_descent_rate']):.2f} "
+                "hPa month$^{-1}$)")
+    ax03.plot(rate, pressure, color='red', label=label)
+    spread_valid = valid & np.isfinite(std)
+    ax03.fill_betweenx(pressure, rate - std, rate + std,
+                        where=spread_valid, color='red', alpha=0.15)
 
-if __name__ == "__main__":
+    pressure = np.asarray(os_descent["pres"].values, dtype=float)
+    profile = os_descent.sel(shear=shear)
+    rate = np.asarray(profile["descent_rate"].values, dtype=float)
+    std = np.asarray(profile["std_descent_rate"].values, dtype=float)
+    valid = np.isfinite(pressure) & np.isfinite(rate)
+    label = (f"{str(shear).capitalize()} onset "
+                f"({float(profile['mean_descent_rate']):.2f} "
+                "hPa month$^{-1}$)")
+    ax03.plot(rate, pressure, color='blue', label=label)
+    spread_valid = valid & np.isfinite(std)
+    ax03.fill_betweenx(pressure, rate - std, rate + std,
+                        where=spread_valid, color='blue', alpha=0.15)
 
-    dates = xr.open_dataset('/Users/krd020/Documents/qbo-metrics/reference_dates.nc')
-    westerly_u = xr.open_dataset('/Users/krd020/Documents/qbo-metrics/qbo_composite_westerly_exclude_2015_2020.nc')
-    period_range = zero_crossing_period_range(dates, exclude_years=EXCLUDED_ONSET_YEARS)
+    pressure = np.asarray(ace_descent["pres"].values, dtype=float)
+    profile = ace_descent.sel(shear=shear)
+    rate = np.asarray(profile["descent_rate"].values, dtype=float)
+    std = np.asarray(profile["std_descent_rate"].values, dtype=float)
+    valid = np.isfinite(pressure) & np.isfinite(rate)
+    label = (f"{str(shear).capitalize()} onset "
+                f"({float(profile['mean_descent_rate']):.2f} "
+                "hPa month$^{-1}$)")
+    ax03.plot(rate, pressure, color='orange', label=label)
+    spread_valid = valid & np.isfinite(std)
+    ax03.fill_betweenx(pressure, rate - std, rate + std,
+                        where=spread_valid, color='orange', alpha=0.15)
 
-    ace_loc = "/Volumes/Users/krd020/postdoc/ISSI_QBO/data/ACE_V5.3_O3_MZM_anom_2004-2026_for_qbo_metrics.nc" 
-    ds_daily, ace_ds_monthly = load_data(ace_loc, variables=['o3'])
-    ace_ds_monthly = ace_ds_monthly.load()
-    ace_ds_monthly = ace_ds_monthly.sel(time=slice('2004-8', '2025-12'))
-    ace_composites = _get_composites(ace_ds_monthly, dates)
-    ace_westerly_composite = ace_composites['westerly'].load()
-    ace_easterly_composite = ace_composites['easterly'].load()
-    ace_westerly_equatorial = ace_westerly_composite.sel(latitude=0)
-    ace_easterly_equatorial = ace_easterly_composite.sel(latitude=0)
-    ace_u_composites = {
-        "westerly": ace_westerly_equatorial['o3'],
-        "easterly": ace_easterly_equatorial['o3'],
-    }
-    ace_u_eq_monthly = (ace_ds_monthly.sel(pres=slice(0.5, 200), latitude=[0]).mean("latitude").load())
-    ace_u_cycles = phase_amplitude(ace_u_composites, zero_crossing_range=period_range)
-    ace_qbo_period = float(ace_u_cycles["period"])
-    ace_cycle_fits = {
-        'o3': phase_amplitude(
-            ace_westerly_equatorial['o3'], period=ace_qbo_period,
-            zero_crossing_range=period_range),}
+    ax03.axvline(0, color="0.7", lw=0.8)
+    ax03.set_xlabel("Downward rate\n [hPa month$^{-1}$]")
+    ax03.set_yscale("log")
+    ax03.set_ylim(float(np.nanmax(pressure)), float(np.nanmin(pressure)))
+    _plot_reference_pressure(ax03, reference_pres)
+    ax03.set_title("Westerly Onset")
+    ax03.grid(True)
+    ax03.set_xlim([-5, 40])
+    ax03.set_yticklabels([])
 
+    ax03 = plt.subplot(bottom_gs[0, 3])
+    shear = 'easterly'
 
-    os_loc = "/Volumes/Users/krd020/postdoc/ISSI_QBO/data/OSIRIS_V7.4_O3_MZM_anom_2002-2021_for_qbo_metrics.nc" 
-    ds_daily, os_ds_monthly = load_data(os_loc, variables=['ozone_concentration'])
-    os_ds_monthly = os_ds_monthly.rename({'ozone_concentration': 'o3'})
-    os_ds_monthly = os_ds_monthly.load()
-    os_ds_monthly = os_ds_monthly.sel(time=slice('2004-8', '2025-12'))
-    os_composites = _get_composites(os_ds_monthly, dates)
-    os_westerly_composite = os_composites['westerly'].load()
-    os_easterly_composite = os_composites['easterly'].load()
-    os_westerly_equatorial = os_westerly_composite.sel(latitude=0)
-    os_easterly_equatorial = os_easterly_composite.sel(latitude=0)
-    os_u_composites = {
-        "westerly": os_westerly_equatorial['o3'],
-        "easterly": os_easterly_equatorial['o3'],
-    }
-    os_u_eq_monthly = (os_ds_monthly.sel(pres=slice(0.5, 200), latitude=[0]).mean("latitude").load())
-    os_u_cycles = phase_amplitude(os_u_composites, zero_crossing_range=period_range)
-    os_qbo_period = float(os_u_cycles["period"])
-    os_cycle_fits = {
-        'o3': phase_amplitude(
-            os_westerly_equatorial['o3'], period=os_qbo_period,
-            zero_crossing_range=period_range),}
+    pressure = np.asarray(mls_descent["pres"].values, dtype=float)
+    profile = mls_descent.sel(shear=shear)
+    rate = np.asarray(profile["descent_rate"].values, dtype=float)
+    std = np.asarray(profile["std_descent_rate"].values, dtype=float)
+    valid = np.isfinite(pressure) & np.isfinite(rate)
+    label = (f"{str(shear).capitalize()} onset "
+                f"({float(profile['mean_descent_rate']):.2f} "
+                "hPa month$^{-1}$)")
+    ax03.plot(rate, pressure, color='red', label=label)
+    spread_valid = valid & np.isfinite(std)
+    ax03.fill_betweenx(pressure, rate - std, rate + std,
+                        where=spread_valid, color='red', alpha=0.15)
 
+    pressure = np.asarray(os_descent["pres"].values, dtype=float)
+    profile = os_descent.sel(shear=shear)
+    rate = np.asarray(profile["descent_rate"].values, dtype=float)
+    std = np.asarray(profile["std_descent_rate"].values, dtype=float)
+    valid = np.isfinite(pressure) & np.isfinite(rate)
+    label = (f"{str(shear).capitalize()} onset "
+                f"({float(profile['mean_descent_rate']):.2f} "
+                "hPa month$^{-1}$)")
+    ax03.plot(rate, pressure, color='blue',  label=label)
+    spread_valid = valid & np.isfinite(std)
+    ax03.fill_betweenx(pressure, rate - std, rate + std,
+                        where=spread_valid, color='blue', alpha=0.15)
 
-    mls_loc = "/Volumes/Users/krd020/postdoc/ISSI_QBO/data/MLS_V6.0_O3_MZM_anom_2004-2026_for_qbo_metrics.nc"
-    ds_daily, mls_ds_monthly = load_data(mls_loc, variables=['o3'])
-    mls_ds_monthly = mls_ds_monthly.load()
-    mls_ds_monthly =mls_ds_monthly.interp(pres=os_ds_monthly.pres)
-    mls_ds_monthly = mls_ds_monthly.sel(time=slice('2004-8', '2025-12'))
-    mls_composites = _get_composites(mls_ds_monthly, dates)
-    mls_westerly_composite = mls_composites['westerly'].load()
-    mls_easterly_composite = mls_composites['easterly'].load()
-    mls_westerly_equatorial = mls_westerly_composite.sel(latitude=0)
-    mls_easterly_equatorial = mls_easterly_composite.sel(latitude=0)
-    mls_u_composites = {
-        "westerly": mls_westerly_equatorial['o3'],
-        "easterly": mls_easterly_equatorial['o3'],
-    }
-    mls_u_eq_monthly = (mls_ds_monthly.sel(pres=slice(0.5, 200), latitude=[0]).mean("latitude").load())
-    mls_u_cycles = phase_amplitude(mls_u_composites, zero_crossing_range=period_range)
-    mls_qbo_period = float(mls_u_cycles["period"])
-    mls_cycle_fits = {
-        'o3': phase_amplitude(
-            mls_westerly_equatorial['o3'], period=mls_qbo_period,
-            zero_crossing_range=period_range),}
+    pressure = np.asarray(ace_descent["pres"].values, dtype=float)
+    profile = ace_descent.sel(shear=shear)
+    rate = np.asarray(profile["descent_rate"].values, dtype=float)
+    std = np.asarray(profile["std_descent_rate"].values, dtype=float)
+    valid = np.isfinite(pressure) & np.isfinite(rate)
+    label = (f"{str(shear).capitalize()} onset "
+                f"({float(profile['mean_descent_rate']):.2f} "
+                "hPa month$^{-1}$)")
+    ax03.plot(rate, pressure, color='orange', label=label)
+    spread_valid = valid & np.isfinite(std)
+    ax03.fill_betweenx(pressure, rate - std, rate + std,
+                        where=spread_valid, color='orange', alpha=0.15)
 
-
-    # plot
-    # top row: difference between ace/osiris composites and mls
-    # bottom row: comparison of period, amplitude, phase 
-
-
-    fig = plt.figure(figsize=(7, 6))
-
-    outer_gs = fig.add_gridspec(2, 1, hspace=0.6)
-    top_gs = outer_gs[0].subgridspec(1, 2, wspace=0.5)
-    bottom_gs = outer_gs[1].subgridspec(1, 3, wspace=0.5)
-    ax00 = plt.subplot(top_gs[0, 0])
-    plot_composite(
-        westerly_equatorial[v], x="lag", x_label="Lag [months]",
-        title="Westerly Composite", cb_label="O$_3$ anomaly [ppm]", ax=ax00)
-
-    ax01 = plt.subplot(top_gs[0, 1])
-    plot_composite(
-        westerly_composite[v].sel(lag=0),
-        x="latitude", x_label="Latitude [$^{\\circ}$]",
-        title="Westerly Composite at lag=0", cb_label="%s anomaly [%s]" % (latex_names[vid], units[vid]),
-        overlay=westerly_u["u"].sel(lag=0), overlay_step=10.0, ax=ax01)
-
-    ax00 = plt.subplot(bottom_gs[0, 0])
-    plot_period_fits(cycle_fits, ax=ax00, y_label="%s anomaly at 30 hPa [%s]" % (latex_names[vid], units[vid]))
-
-    ax01 = plt.subplot(bottom_gs[0, 1])
-    ax02 = plt.subplot(bottom_gs[0, 2])
-    plot_phase_amplitude(cycle_fits, amp_ax=ax01, phase_ax=ax02)
+    ax03.axvline(0, color="0.7", lw=0.8)
+    ax03.set_xlabel("Downward rate\n [hPa month$^{-1}$]")
+    ax03.set_yscale("log")
+    ax03.set_ylim(float(np.nanmax(pressure)), float(np.nanmin(pressure)))
+    _plot_reference_pressure(ax03, reference_pres)
+    ax03.set_title("Easterly Onset")
+    ax03.grid(True)
+    ax03.set_xlim([-5, 15])
+    ax03.set_yticklabels([])
 
     plt.subplots_adjust(bottom=0.2)
     plt.savefig('/Volumes/Users/krd020/postdoc/ISSI_QBO/figs/MLS_OSIRIS_ACE_ozone_comp.png')

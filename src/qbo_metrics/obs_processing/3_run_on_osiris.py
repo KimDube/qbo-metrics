@@ -132,3 +132,4 @@ if __name__ == "__main__":
         descent = descent_rate(u_composites, cycles=descent_cycle_windows)
         fig = plot_descent_rate(descent)
         plt.savefig(FIG_LOC + 'OSIRIS_V7.4_%s_descent.png' % var)
+        descent.to_netcdf(DATA_LOC + 'OSIRIS_V7.4_%s_descent.nc' % var)
